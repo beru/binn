@@ -111,6 +111,12 @@ BINN_PRIVATE uint64 tobe64(uint64 input) {
 
 /***************************************************************************/
 
+#ifdef _MSC_VER
+#define stricmp _stricmp
+#define strnicmp _strnicmp
+#define strdup _strdup
+#endif
+
 #ifndef WIN32
 #define stricmp strcasecmp
 #define strnicmp strncasecmp
@@ -1539,6 +1545,7 @@ BINN_PRIVATE BOOL binn_read_pair(int expected_type, void *ptr, int pos, int *pid
   int  type, count, size=0, header_size;
   int  i, int32, id, counter=0;
   unsigned char *p, *plimit, *base, *key, len;
+  key = NULL;
 
   ptr = binn_ptr(ptr);
 
