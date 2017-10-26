@@ -50,6 +50,18 @@ DEF_LIST(X)
   // blob
   bool add(void* value, int size) { return binn_list_add_blob(this, value, size); }
   bool get(int pos, void*& value, int& size) { return binn_list_get_blob(this, pos, &value, &size); }
+  // value
+  bool add(binn* value) { return binn_list_add_value(this, value); }
+  bool get(int pos, binn* value) { return binn_list_get_value(this, pos, value); }
+  // typed array
+  template <typename T>
+  bool add(T* values, int cnt);
+  template <typename T>
+  bool get(T* values, int cnt);
+  template <typename T, int CNT>
+  bool add(T (&values)[CNT]) { return add(values, CNT); }
+  template <typename T, int CNT>
+  bool get(T (&values)[CNT]) { return get(values, CNT); }
 };
 
 struct map : public binn {
@@ -73,6 +85,18 @@ DEF_LIST(X)
   // blob
   bool set(int id, void* value, int size) { return binn_map_set_blob(this, id, value, size); }
   bool get(int id, void*& value, int& size) { return binn_map_get_blob(this, id, &value, &size); }  
+  // value
+  bool set(int id, binn* value) { return binn_map_set_value(this, id, value); }
+  bool get(int id, binn* value) { return binn_map_get_value(this, id, value); }
+  // typed array
+  template <typename T>
+  bool set(int id, T* values, int cnt);
+  template <typename T>
+  bool get(int id, T* values, int cnt);
+  template <typename T, int CNT>
+  bool set(int id, T (&values)[CNT]) { return set(id, values, CNT); }
+  template <typename T, int CNT>
+  bool get(int id, T (&values)[CNT]) { return get(id, values, CNT); }
 };
 
 struct object : public binn {
@@ -96,6 +120,18 @@ DEF_LIST(X)
   // blob
   bool set(char* key, void* value, int size) { return binn_object_set_blob(this, key, value, size); }
   bool get(char* key, void*& value, int& size) { return binn_object_get_blob(this, key, &value, &size); }  
+  // value
+  bool set(char* key, binn* value) { return binn_object_set_value(this, key, value); }
+  bool get(char* key, binn* value) { return binn_object_get_value(this, key, value); }
+  // typed array
+  template <typename T>
+  bool set(char* key, T* values, int cnt);
+  template <typename T>
+  bool get(char* key, T* values, int cnt);
+  template <typename T, int CNT>
+  bool set(char* key, T (&values)[CNT]) { return set(key, values, CNT); }
+  template <typename T, int CNT>
+  bool get(char* key, T (&values)[CNT]) { return get(key, values, CNT); }
 };
 
 #undef DEF_LIST
@@ -141,5 +177,56 @@ private:
   size_t cnt;
   binn* records[64];
 };
+
+template <typename T>
+bool list::add(T* values, int cnt) {
+  manager m;
+  list* list = m.new_list();
+  if (!list) return false;
+  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
+  return add(list);
+}
+
+template <typename T>
+bool list::get(T* values, int cnt) {
+  list* list = nullptr;
+  if (!get(list)) return false;
+  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
+  return true;
+}
+
+template <typename T>
+bool map::set(int id, T* values, int cnt) {
+  manager m;
+  list* list = m.new_list();
+  if (!list) return false;
+  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
+  return set(id, list);
+}
+
+template <typename T>
+bool map::get(int id, T* values, int cnt) {
+  list* list = nullptr;
+  if (!get(id, list)) return false;
+  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
+  return true;
+}
+
+template <typename T>
+bool object::set(char* key, T* values, int cnt) {
+  manager m;
+  list* list = m.new_list();
+  if (!list) return false;
+  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
+  return set(key, list);
+}
+
+template <typename T>
+bool object::get(char* key, T* values, int cnt) {
+  list* list = nullptr;
+  if (!get(key, list)) return false;
+  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
+  return true;
+}
 
 } // namespace binn2
