@@ -6,6 +6,11 @@
 
 using namespace binn2;
 
+struct Pointyo {
+  int ekkus;
+  int wahhi;
+};
+
 struct ChildStruct {
   int8_t s1;
   int16_t s2;
@@ -15,6 +20,7 @@ struct ChildStruct {
   uint16_t u2;
   uint32_t u4;
   uint64_t u8;
+  std::vector<Pointyo> pts;
 };
 
 struct TestStruct {
@@ -24,14 +30,13 @@ struct TestStruct {
   ChildStruct s;
 };
 
-template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
-object_setter& create_object_getter_setter(binn& s) {
-  create_object(s);
-  return (object_setter&)s;
-}
-template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
-object_getter& create_object_getter_setter(binn& s) {
-  return (object_getter&)s;
+template <typename B>
+bool serialize(binn& b, Pointyo& v) {
+  auto& s = create_object_getter_setter<B>(b);
+  return true
+    && s("ekkus", v.ekkus)
+    && s("wahhi", v.wahhi)
+  ;
 }
 
 template <typename B>
@@ -46,6 +51,7 @@ bool serialize(binn& b, ChildStruct& v) {
     && s("u2", v.u2)
     && s("u4", v.u4)
     && s("u8", v.u8)
+    && s("pts", v.pts)
   ;
 }
 
@@ -83,8 +89,15 @@ int main(int argc, char* argv[])
   c.u2 = std::numeric_limits<uint16_t>::max();
   c.u4 = std::numeric_limits<uint32_t>::max();
   c.u8 = std::numeric_limits<uint64_t>::max();
+  c.pts.resize(32);
+  for (auto& p : c.pts) {
+    p.ekkus = 10;
+    p.wahhi = 20;
+  }
   TestStruct s2;
   TestStruct s3 = {0};
+  std::vector<double> dv(32), dv2(32), dv3(32);
+  std::vector<TestStruct> sv(32), sv2(32), sv3(32);
 
   bool r;
   int hoge;
@@ -96,7 +109,10 @@ int main(int argc, char* argv[])
   double darr2_2[32];
   for (size_t i=0; i<16; ++i) darr1[i] = i+1;
   for (size_t i=0; i<32; ++i) darr2[i] = i+2;
+  for (size_t i=0; i<dv.size(); ++i) dv[i] = i+3;
+  for (size_t i=0; i<sv.size(); ++i) sv[i] = s;
   s2 = s3;
+  dv2 = dv3;
 
   // list
   binn l;
@@ -107,29 +123,41 @@ int main(int argc, char* argv[])
     adder(100.0);
     adder(e);
     adder(s);
+    adder(dv);
+    adder(sv);
     r = getter(1, d);
     getter(2, e2);
     getter(3, s2);
+    getter(4, dv2);
+    getter(5, sv2);
   }
 
   // map
   binn m;
   create_map(m);
   s2 = s3;
+  dv2 = dv3;
+  sv2 = sv3;
   {
     map_setter& setter = (map_setter&)m;
     map_getter& getter = (map_getter&)m;
     e2 = TestEnum_b;
     setter(1234, e);
     setter(4444, s);
+    setter(3333, dv);
+    setter(5555, sv);
     getter(1234, e2);
     getter(4444, s2);
+    getter(3333, dv2);
+    setter(5555, sv);
   }
 
   // object
   binn o;
   create_object(o);
   s2 = s3;
+  dv2 = dv3;
+  sv2 = sv3;
   {
     object_setter& setter = (object_setter&)o;
     object_getter& getter = (object_getter&)o;
@@ -139,13 +167,18 @@ int main(int argc, char* argv[])
     setter("darr2", darr2);
     setter("e", e);
     setter("struct", s);
+    setter("vector<double>", dv);
+    setter("vector<TestStruct>", sv);
     getter("hoge", hoge);
     getter("moge", moge);
     getter("darr1", darr1_2, 16);
     getter("darr2", darr2_2);
     getter("e", e2);
     getter("struct", s2);
+    getter("vector<double>", dv2);
+    getter("vector<TestStruct>", sv);
   }
 
   return 0;
 }
+

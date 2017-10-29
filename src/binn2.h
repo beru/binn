@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <type_traits>
+#include <vector>
 
 #include "binn.h"
 
@@ -21,6 +22,7 @@ namespace binn2 {
   X(double, double*, double) \
   X(char*, char**, str) \
 
+// list
 struct list_adder : public binn {
   operator binn* () { return this; }
 #undef X
@@ -80,6 +82,7 @@ DEF_LIST(X)
   bool operator()(int pos, T& value);
 };
 
+// map
 struct map_setter : public binn {
   operator binn* () { return this; }
 #define X(arg_t, arg_t2, suffix) \
@@ -139,6 +142,7 @@ DEF_LIST(X)
   bool operator()(int id, T& value);
 };
 
+// object
 struct object_setter : public binn {
   operator binn* () { return this; }
 #define X(arg_t, arg_t2, suffix) \
@@ -206,6 +210,7 @@ inline bool create_list(binn& b) { return binn_create_list(&b); }
 inline bool create_map(binn& b) { return binn_create_map(&b); }
 inline bool create_object(binn& b) { return binn_create_object(&b); }
 
+// impl
 template <typename T>
 inline bool to_list(binn& b, T* values, int cnt) {
   create_list(b);
@@ -290,6 +295,52 @@ bool object_getter::operator()(char* key, T& value) {
   binn b;
   create_list(b);
   return (*this)(key, &b) && serialize<std::false_type>(b, value);
+}
+
+// utility
+template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
+object_setter& create_object_getter_setter(binn& s) {
+  create_object(s);
+  return (object_setter&)s;
+}
+template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
+object_getter& create_object_getter_setter(binn& s) {
+  return (object_getter&)s;
+}
+
+template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
+list_adder& create_list_getter_adder(binn& s) {
+  create_list(s);
+  return (list_adder&)s;
+}
+template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
+list_getter& create_list_getter_adder(binn& s) {
+  return (list_getter&)s;
+}
+
+// std::vector
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::vector<T>& v) {
+  auto& s = create_list_getter_adder<B>(b);
+  for (size_t i=0; i<v.size(); ++i) {
+    if (!s(v[i])) return false;
+  }
+  return true;
+}
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::vector<T>& v) {
+  auto& s = create_list_getter_adder<B>(b);
+  binn_iter iter;
+  binn value;
+  size_t cnt = 0;
+  binn_list_foreach(&b, value) {
+    ++cnt;
+  }
+  v.resize(cnt);
+  for (size_t i=0; i<v.size(); ++i) {
+    if (!s(1+i, v[i])) return false;
+  }
+  return true;
 }
 
 } // namespace binn2
