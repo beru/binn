@@ -1,14 +1,11 @@
 #pragma once
 
 #include <stdint.h>
+#include <type_traits>
 
 #include "binn.h"
 
 namespace binn2 {
-
-struct list;
-struct map;
-struct object;
 
 #undef DEF_LIST
 #define DEF_LIST(X) \
@@ -23,210 +20,276 @@ struct object;
   X(float, float*, float) \
   X(double, double*, double) \
   X(char*, char**, str) \
-  X(list*, void**, list) \
-  X(map*, void**, map) \
-  X(object*, void**, object) \
 
-
-struct list : public binn {
+struct list_adder : public binn {
+  operator binn* () { return this; }
 #undef X
 #define X(arg_t, arg_t2, suffix) \
-bool add(arg_t value) { return binn_list_add_ ## suffix(this, value); } \
-bool get(int pos, arg_t& value) { return binn_list_get_ ## suffix(this, pos, (arg_t2)&value); }
+bool operator()(arg_t value) { return binn_list_add_ ## suffix(this, value); }
 DEF_LIST(X)
 #undef X
   // bool
-  bool add(bool value) {
-    return binn_list_add_bool(this, value);
-  }
-  bool get(int pos, bool& value) {
+  bool operator()(bool value) { return binn_list_add_bool(this, value); }
+  // null
+  bool operator()(void) { return binn_list_add_null(this); }
+  // blob
+  bool operator()(void* value, int size) { return binn_list_add_blob(this, value, size); }
+  // value
+  bool operator()(binn* value) { return binn_list_add_value(this, value); }
+  // typed array
+  template <typename T>
+  bool operator()(T* values, int cnt);
+  template <typename T, int CNT>
+  bool operator()(T (&values)[CNT]) { return add(values, CNT); }
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(T value) { return (*this)((int32_t)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(T& value);
+};
+
+struct list_getter : public binn {
+  operator binn* () { return this; }
+#undef X
+#define X(arg_t, arg_t2, suffix) \
+bool operator()(int pos, arg_t& value) { return binn_list_get_ ## suffix(this, pos, (arg_t2)&value); }
+DEF_LIST(X)
+#undef X
+  // bool
+  bool operator()(int pos, bool& value) {
     BOOL b;
     BOOL r = binn_list_get_bool(this, pos, &b);
     value = (r != FALSE);
     return r;
   }
-  // null
-  bool add(void) { return binn_list_add_null(this); }
   // blob
-  bool add(void* value, int size) { return binn_list_add_blob(this, value, size); }
-  bool get(int pos, void*& value, int& size) { return binn_list_get_blob(this, pos, &value, &size); }
+  bool operator()(int pos, void*& value, int& size) { return binn_list_get_blob(this, pos, &value, &size); }
   // value
-  bool add(binn* value) { return binn_list_add_value(this, value); }
-  bool get(int pos, binn* value) { return binn_list_get_value(this, pos, value); }
+  bool operator()(int pos, binn* value) { return binn_list_get_value(this, pos, value); }
   // typed array
   template <typename T>
-  bool add(T* values, int cnt);
-  template <typename T>
-  bool get(T* values, int cnt);
+  bool operator()(int pos, T* values, int cnt);
   template <typename T, int CNT>
-  bool add(T (&values)[CNT]) { return add(values, CNT); }
-  template <typename T, int CNT>
-  bool get(T (&values)[CNT]) { return get(values, CNT); }
+  bool operator()(int pos, T (&values)[CNT]) { return get(pos, values, CNT); }
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(int pos, T& value) { return (*this)(pos, (int32_t&)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(int pos, T& value);
 };
 
-struct map : public binn {
+struct map_setter : public binn {
+  operator binn* () { return this; }
 #define X(arg_t, arg_t2, suffix) \
-bool set(int id, arg_t value) { return binn_map_set_ ## suffix(this, id, value); } \
-bool get(int id, arg_t& value) { return binn_map_get_ ## suffix(this, id, (arg_t2)&value); }
+bool operator()(int id, arg_t value) { return binn_map_set_ ## suffix(this, id, value); }
 DEF_LIST(X)
 #undef X
   // bool
-  bool set(int id, bool value) {
+  bool operator()(int id, bool value) {
     return binn_map_set_bool(this, id, value);
   }
-  bool get(int id, bool& value) {
+  // null
+  bool operator()(int id) { return binn_map_set_null(this, id); }
+  // blob
+  bool operator()(int id, void* value, int size) { return binn_map_set_blob(this, id, value, size); }
+  // value
+  bool operator()(int id, binn* value) { return binn_map_set_value(this, id, value); }
+  // typed array
+  template <typename T>
+  bool operator()(int id, T* values, int cnt);
+  template <typename T, int CNT>
+  bool operator()(int id, T (&values)[CNT]) { return set(id, values, CNT); }
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(int id, T value) { return (*this)(id, (int32_t)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(int id, T& value);
+};
+
+struct map_getter : public binn {
+  operator binn* () { return this; }
+#define X(arg_t, arg_t2, suffix) \
+bool operator()(int id, arg_t& value) { return binn_map_get_ ## suffix(this, id, (arg_t2)&value); }
+DEF_LIST(X)
+#undef X
+  // bool
+  bool operator()(int id, bool& value) {
     BOOL b;
     BOOL r = binn_map_get_bool(this, id, &b);
     value = (r != FALSE);
     return r;
   }
-  // null
-  bool set(int id) { return binn_map_set_null(this, id); }
   // blob
-  bool set(int id, void* value, int size) { return binn_map_set_blob(this, id, value, size); }
-  bool get(int id, void*& value, int& size) { return binn_map_get_blob(this, id, &value, &size); }  
+  bool operator()(int id, void*& value, int& size) { return binn_map_get_blob(this, id, &value, &size); }  
   // value
-  bool set(int id, binn* value) { return binn_map_set_value(this, id, value); }
-  bool get(int id, binn* value) { return binn_map_get_value(this, id, value); }
+  bool operator()(int id, binn* value) { return binn_map_get_value(this, id, value); }
   // typed array
   template <typename T>
-  bool set(int id, T* values, int cnt);
-  template <typename T>
-  bool get(int id, T* values, int cnt);
+  bool operator()(int id, T* values, int cnt);
   template <typename T, int CNT>
-  bool set(int id, T (&values)[CNT]) { return set(id, values, CNT); }
-  template <typename T, int CNT>
-  bool get(int id, T (&values)[CNT]) { return get(id, values, CNT); }
+  bool operator()(int id, T (&values)[CNT]) { return get(id, values, CNT); }
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(int id, T& value) { return (*this)(id, (int32_t&)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(int id, T& value);
 };
 
-struct object : public binn {
+struct object_setter : public binn {
+  operator binn* () { return this; }
 #define X(arg_t, arg_t2, suffix) \
-bool set(char* key, arg_t value) { return binn_object_set_ ## suffix(this, key, value); } \
-bool get(char* key, arg_t& value) { return binn_object_get_ ## suffix(this, key, (arg_t2)&value); }
+bool operator()(char* key, arg_t value) { return binn_object_set_ ## suffix(this, key, value); }
 DEF_LIST(X)
 #undef X
   // bool
-  bool set(char* key, bool value) {
+  bool operator()(char* key, bool value) {
     return binn_object_set_bool(this, key, value);
   }
-  bool get(char* key, bool& value) {
+  // null
+  bool operator()(char* key) { return binn_object_set_null(this, key); }
+  // blob
+  bool operator()(char* key, void* value, int size) { return binn_object_set_blob(this, key, value, size); }
+  // value
+  bool operator()(char* key, binn* value) { return binn_object_set_value(this, key, value); }
+  // typed array
+  template <typename T>
+  bool operator()(char* key, T* values, int cnt);
+  template <typename T, int CNT>
+  bool operator()(char* key, T (&values)[CNT]) { return (*this)(key, values, CNT); }
+
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(char* key, T value) { return (*this)(key, (int32_t)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(char* key, T& value);
+};
+
+struct object_getter : public binn {
+  operator binn* () { return this; }
+#define X(arg_t, arg_t2, suffix) \
+bool operator()(char* key, arg_t& value) { return binn_object_get_ ## suffix(this, key, (arg_t2)&value); }
+DEF_LIST(X)
+#undef X
+  // bool
+  bool operator()(char* key, bool& value) {
     BOOL b;
     BOOL r = binn_object_get_bool(this, key, &b);
     value = (r != FALSE);
     return r;
   }
-  // null
-  bool set(char* key) { return binn_object_set_null(this, key); }
   // blob
-  bool set(char* key, void* value, int size) { return binn_object_set_blob(this, key, value, size); }
-  bool get(char* key, void*& value, int& size) { return binn_object_get_blob(this, key, &value, &size); }  
+  bool operator()(char* key, void*& value, int& size) { return binn_object_get_blob(this, key, &value, &size); }  
   // value
-  bool set(char* key, binn* value) { return binn_object_set_value(this, key, value); }
-  bool get(char* key, binn* value) { return binn_object_get_value(this, key, value); }
+  bool operator()(char* key, binn* value) { return binn_object_get_value(this, key, value); }
   // typed array
   template <typename T>
-  bool set(char* key, T* values, int cnt);
-  template <typename T>
-  bool get(char* key, T* values, int cnt);
+  bool operator()(char* key, T* values, int cnt);
   template <typename T, int CNT>
-  bool set(char* key, T (&values)[CNT]) { return set(key, values, CNT); }
-  template <typename T, int CNT>
-  bool get(char* key, T (&values)[CNT]) { return get(key, values, CNT); }
+  bool operator()(char* key, T (&values)[CNT]) { return (*this)(key, values, CNT); }
+
+  // enum
+  template <typename T, typename std::enable_if<std::is_enum<T>::value>::type* = nullptr>
+  bool operator()(char* key, T& value) { return (*this)(key, (int32_t&)value); }
+  // class
+  template <typename T, typename std::enable_if<std::is_class<T>::value>::type* = nullptr>
+  bool operator()(char* key, T& value);
 };
 
 #undef DEF_LIST
 
-class manager {
-public:
-  manager()
-    :
-    cnt(0)
-  {
-  }
-  
-  ~manager() {
-    for (size_t i=0; i<cnt; ++i) {
-      binn_free(records[cnt - 1 - i]);
-    }
-    cnt = 0;
-  }
-
-  list* new_list() {
-    binn* r = binn_list();
-    rec(r);
-    return (list*)r;
-  }
-  
-  map* new_map() {
-    binn* r = binn_map();
-    rec(r);
-    return (map*)r;
-  }
-
-  object* new_object() {
-    binn* r = binn_object();
-    rec(r);
-    return (object*)r;
-  }
-  
-private:
-  void rec(binn* r) {
-    if (r) records[cnt++] = r;
-  }
-  
-  size_t cnt;
-  binn* records[64];
-};
+inline bool create_list(binn& b) { return binn_create_list(&b); }
+inline bool create_map(binn& b) { return binn_create_map(&b); }
+inline bool create_object(binn& b) { return binn_create_object(&b); }
 
 template <typename T>
-bool list::add(T* values, int cnt) {
-  manager m;
-  list* list = m.new_list();
-  if (!list) return false;
-  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
-  return add(list);
-}
-
-template <typename T>
-bool list::get(T* values, int cnt) {
-  list* list = nullptr;
-  if (!get(list)) return false;
-  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
+inline bool to_list(binn& b, T* values, int cnt) {
+  create_list(b);
+  list_adder& adder = (list_adder&)b;
+  for (int i=0; i<cnt; ++i) if (!adder(values[i])) return false;
   return true;
 }
 
 template <typename T>
-bool map::set(int id, T* values, int cnt) {
-  manager m;
-  list* list = m.new_list();
-  if (!list) return false;
-  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
-  return set(id, list);
-}
-
-template <typename T>
-bool map::get(int id, T* values, int cnt) {
-  list* list = nullptr;
-  if (!get(id, list)) return false;
-  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
+inline bool from_list(binn& b, T* values, int cnt) {
+  list_getter& getter = (list_getter&)b;
+  for (int i=0; i<cnt; ++i) if (!getter(1+i, values[i])) return false;
   return true;
 }
 
 template <typename T>
-bool object::set(char* key, T* values, int cnt) {
-  manager m;
-  list* list = m.new_list();
-  if (!list) return false;
-  for (int i=0; i<cnt; ++i) if (!list->add(values[i])) return false;
-  return set(key, list);
+bool list_adder::operator()(T* values, int cnt) {
+  binn b;
+  return to_list(b, value, cnt) & (*this)(&b);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool list_adder::operator()(T& value) {
+  binn b;
+  return serialize<std::true_type>(b, value) && (*this)(&b);
 }
 
 template <typename T>
-bool object::get(char* key, T* values, int cnt) {
-  list* list = nullptr;
-  if (!get(key, list)) return false;
-  for (int i=0; i<cnt; ++i) if (!list->get(1+i, values[i])) return false;
-  return true;
+bool list_getter::operator()(int pos, T* values, int cnt) {
+  binn b;
+  create_list(b);
+  return (*this)(pos, &b) && from_list(b, value, cnt);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool list_getter::operator()(int pos, T& value) {
+  binn b;
+  create_list(b);
+  return (*this)(pos, &b) && serialize<std::false_type>(b, value);
+}
+
+template <typename T>
+bool map_setter::operator()(int id, T* values, int cnt) {
+  binn b;
+  return to_list(b, value, cnt) && (*this)(id, &b);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool map_setter::operator()(int id, T& value) {
+  binn b;
+  return serialize<std::true_type>(b, value) && (*this)(id, &b);
+}
+
+template <typename T>
+bool map_getter::operator()(int id, T* values, int cnt) {
+  binn* b;
+  return (*this)(id, b) && from_list(*b, value, cnt);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool map_getter::operator()(int id, T& value) {
+  binn b;
+  create_list(b);
+  return (*this)(id, &b) && serialize<std::false_type>(b, value);
+}
+
+template <typename T>
+bool object_setter::operator()(char* key, T* values, int cnt) {
+  binn b;
+  return to_list(b, values, cnt) & (*this)(key, &b);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool object_setter::operator()(char* key, T& value) {
+  binn b;
+  return serialize<std::true_type>(b, value) && (*this)(key, &b);
+}
+
+template <typename T>
+bool object_getter::operator()(char* key, T* values, int cnt) {
+  binn b;
+  create_list(b);
+  return (*this)(key, &b) && from_list(b, values, cnt);
+}
+template <typename T, typename std::enable_if<std::is_class<T>::value>::type*>
+bool object_getter::operator()(char* key, T& value) {
+  binn b;
+  create_list(b);
+  return (*this)(key, &b) && serialize<std::false_type>(b, value);
 }
 
 } // namespace binn2
