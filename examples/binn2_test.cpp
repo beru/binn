@@ -21,6 +21,10 @@ struct ChildStruct {
   uint32_t u4;
   uint64_t u8;
   std::vector<Pointyo> pts;
+  std::array<Pointyo, 8> pts2;
+  std::list<Pointyo> pts3;
+  std::map<int, Pointyo> pts4;
+  std::map<std::string, Pointyo> pts5;
 };
 
 struct TestStruct {
@@ -52,6 +56,10 @@ bool serialize(binn& b, ChildStruct& v) {
     && s("u4", v.u4)
     && s("u8", v.u8)
     && s("pts", v.pts)
+    && s("pts2", v.pts2)
+    && s("pts3", v.pts3)
+    && s("pts4", v.pts4)
+    && s("pts5", v.pts5)
   ;
 }
 
@@ -94,6 +102,17 @@ int main(int argc, char* argv[])
     p.ekkus = 10;
     p.wahhi = 20;
   }
+  for (auto& p : c.pts2) {
+    p.ekkus = 11;
+    p.wahhi = 21;
+  }
+  for (size_t i=0; i<7; ++i) {
+    c.pts3.emplace_back(Pointyo{12, 22});
+  }
+  c.pts4[3] = Pointyo{13, 23};
+  c.pts4[4] = Pointyo{14, 24};
+  c.pts5["san"] = Pointyo{113, 123};
+  c.pts5["yon"] = Pointyo{114, 124};
   TestStruct s2;
   TestStruct s3 = {0};
   std::vector<double> dv(32), dv2(32), dv3(32);
@@ -149,7 +168,7 @@ int main(int argc, char* argv[])
     getter(1234, e2);
     getter(4444, s2);
     getter(3333, dv2);
-    setter(5555, sv);
+    getter(5555, sv2);
   }
 
   // object
@@ -176,7 +195,7 @@ int main(int argc, char* argv[])
     getter("e", e2);
     getter("struct", s2);
     getter("vector<double>", dv2);
-    getter("vector<TestStruct>", sv);
+    getter("vector<TestStruct>", sv2);
   }
 
   return 0;

@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <type_traits>
 #include <vector>
+#include <array>
+#include <list>
+#include <map>
 
 #include "binn.h"
 
@@ -299,16 +302,6 @@ bool object_getter::operator()(char* key, T& value) {
 
 // utility
 template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
-object_setter& create_object_getter_setter(binn& s) {
-  create_object(s);
-  return (object_setter&)s;
-}
-template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
-object_getter& create_object_getter_setter(binn& s) {
-  return (object_getter&)s;
-}
-
-template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
 list_adder& create_list_getter_adder(binn& s) {
   create_list(s);
   return (list_adder&)s;
@@ -318,29 +311,114 @@ list_getter& create_list_getter_adder(binn& s) {
   return (list_getter&)s;
 }
 
+template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
+map_setter& create_map_getter_setter(binn& s) {
+  create_map(s);
+  return (map_setter&)s;
+}
+template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
+map_getter& create_map_getter_setter(binn& s) {
+  return (map_getter&)s;
+}
+
+template <typename T, typename std::enable_if<std::is_same<T, std::true_type>::value>::type* = nullptr>
+object_setter& create_object_getter_setter(binn& s) {
+  create_object(s);
+  return (object_setter&)s;
+}
+template <typename T, typename std::enable_if<std::is_same<T, std::false_type>::value>::type* = nullptr>
+object_getter& create_object_getter_setter(binn& s) {
+  return (object_getter&)s;
+}
+
 // std::vector
 template <typename B, typename T, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
 bool serialize(binn& b, std::vector<T>& v) {
+  return to_list(b, &v[0], v.size());
+}
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::vector<T>& v) {
+  v.resize(b.count);
+  return from_list(b, &v[0], b.count);
+}
+
+// std::array
+template <typename B, typename T, size_t N, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::array<T, N>& v) {
+  return to_list(b, &v[0], N);
+}
+template <typename B, typename T, size_t N, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::array<T, N>& v) {
+  return from_list(b, &v[0], N);
+}
+
+// std::list
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::list<T>& v) {
   auto& s = create_list_getter_adder<B>(b);
-  for (size_t i=0; i<v.size(); ++i) {
-    if (!s(v[i])) return false;
+  for (auto it=v.begin(); it!=v.end(); ++it) {
+    if (!s(*it)) return false;
   }
   return true;
 }
 template <typename B, typename T, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
-bool serialize(binn& b, std::vector<T>& v) {
+bool serialize(binn& b, std::list<T>& v) {
   auto& s = create_list_getter_adder<B>(b);
-  binn_iter iter;
-  binn value;
-  size_t cnt = 0;
-  binn_list_foreach(&b, value) {
-    ++cnt;
-  }
-  v.resize(cnt);
-  for (size_t i=0; i<v.size(); ++i) {
-    if (!s(1+i, v[i])) return false;
+  v.clear();
+  for (int i=0; i<b.count; ++i) {
+    v.push_back(T());
+    if (!s(1+i, v.back())) return false;
   }
   return true;
 }
+
+// std::map<int, T>
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::map<int, T>& v) {
+  auto& s = create_map_getter_setter<B>(b);
+  for (auto it=v.begin(); it!=v.end(); ++it) {
+    if (!s(it->first, it->second)) return false;
+  }
+  return true;
+}
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::map<int, T>& v) {
+  auto& g = create_map_getter_setter<B>(b);
+  binn_iter iter;
+  int id;
+  binn value;
+  T t;
+  v.clear();
+  binn_map_foreach(&b, id, value) {
+    if (!g(id, t)) return false;
+    v[id] = t;
+  }
+  return true;
+}
+
+// std::map<std::string, T>
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::true_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::map<std::string, T>& v) {
+  auto& s = create_object_getter_setter<B>(b);
+  for (auto it=v.begin(); it!=v.end(); ++it) {
+    if (!s((char*)it->first.c_str(), it->second)) return false;
+  }
+  return true;
+}
+template <typename B, typename T, typename std::enable_if<std::is_same<B, std::false_type>::value>::type* = nullptr>
+bool serialize(binn& b, std::map<std::string, T>& v) {
+  auto& g = create_object_getter_setter<B>(b);
+  binn_iter iter;
+  char key[256];
+  binn value;
+  T t;
+  v.clear();
+  binn_object_foreach(&b, key, value) {
+    if (!g(key, t)) return false;
+    v[key] = t;
+  }
+  return true;
+}
+
 
 } // namespace binn2
